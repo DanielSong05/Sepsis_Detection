@@ -13,7 +13,8 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     roc_curve,
-    precision_recall_curve
+    precision_recall_curve,
+    confusion_matrix
 )
 
 ARTIFACTS_DIR = "artifacts"
@@ -90,43 +91,95 @@ def compute_metrics(y_true, proba, y_pred, thr):
         "pred_positive_rate": float(np.mean(y_pred)),
     }
 
-def plot_roc(models_data, outpath):
-    """
-    models_data: list of dicts with keys:
-      'tag', 'y_true', 'proba'
-    """
-    fig, ax = plt.subplots(figsize=(6, 5))
+def plot_roc(models_data, outpath, title="ROC Curve – Sepsis Prediction"):
+    fig, ax = plt.subplots(figsize=(7.5, 6.0))
+
     for md in models_data:
         y_true = md["y_true"]
         proba = md["proba"]
+        tag   = md["tag"]
+
         fpr, tpr, _ = roc_curve(y_true, proba)
-        ax.plot(fpr, tpr, label=f"{md['tag']} (AUROC={roc_auc_score(y_true, proba):.3f})")
-    ax.plot([0, 1], [0, 1], linestyle='--', linewidth=1)
-    ax.set_xlabel("False Positive Rate")
-    ax.set_ylabel("True Positive Rate (Recall)")
-    ax.set_title("ROC Curve")
-    ax.legend(loc="lower right")
+        au = roc_auc_score(y_true, proba)
+
+        # main curve
+        ax.plot(fpr, tpr, linewidth=2.5, label=f"{tag} (AUROC={au:.3f})")
+
+        # operating point from your chosen threshold (via y_pred)
+        if "y_pred" in md:
+            y_pred = md["y_pred"]
+            tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+            fpr_op = fp / (fp + tn) if (fp + tn) else 0.0
+            tpr_op = tp / (tp + fn) if (tp + fn) else 0.0
+            thr     = md.get("thr", None)
+
+            ax.scatter([fpr_op], [tpr_op], s=60, edgecolor="black", zorder=5)
+            label_txt = f"thr={thr:.2f}" if thr is not None else "operating point"
+            ax.annotate(label_txt, (fpr_op, tpr_op),
+                        xytext=(8, -10), textcoords="offset points",
+                        fontsize=11)
+
+    # random baseline
+    ax.plot([0, 1], [0, 1], linestyle="--", linewidth=1.8, alpha=0.7)
+
+    # styling
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True, linestyle=":", linewidth=0.8, alpha=0.6)
+    ax.set_xlabel("False Positive Rate (1 − Specificity)", fontsize=13, fontweight="bold")
+    ax.set_ylabel("True Positive Rate (Sensitivity/Recall)", fontsize=13, fontweight="bold")
+    ax.set_title(title, fontsize=15, fontweight="bold", pad=8)
+    leg = ax.legend(loc="lower right", frameon=False, fontsize=11)
     plt.tight_layout()
-    fig.savefig(outpath, dpi=160)
+    fig.savefig(outpath, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-def plot_pr(models_data, outpath):
-    fig, ax = plt.subplots(figsize=(6, 5))
+
+def plot_pr(models_data, outpath, title="Precision–Recall Curve – Sepsis Prediction"):
+    fig, ax = plt.subplots(figsize=(7.5, 6.0))
+
+    # Use prevalence from the first model's y_true (same test set for all models)
+    baseline = float(np.mean(models_data[0]["y_true"]))
+
     for md in models_data:
         y_true = md["y_true"]
-        proba = md["proba"]
-        prec, rec, _ = precision_recall_curve(y_true, proba)
+        proba  = md["proba"]
+        tag    = md["tag"]
+
+        rec, prec, _ = precision_recall_curve(y_true, proba)
         ap = average_precision_score(y_true, proba)
-        ax.plot(rec, prec, label=f"{md['tag']} (AUPRC={ap:.3f})")
-    baseline = np.mean(models_data[0]["y_true"])
-    ax.hlines(baseline, xmin=0, xmax=1, linestyle='--', linewidth=1, label=f"Baseline pos rate={baseline:.3f}")
-    ax.set_xlabel("Recall")
-    ax.set_ylabel("Precision")
-    ax.set_title("Precision-Recall Curve")
-    ax.legend(loc="upper right")
+
+        ax.plot(rec, prec, linewidth=2.5, label=f"{tag} (AUPRC={ap:.3f})")
+
+        # operating point from y_pred (precision/recall at chosen threshold)
+        if "y_pred" in md:
+            y_pred = md["y_pred"]
+            tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+            prec_op = tp / (tp + fp) if (tp + fp) else 0.0
+            rec_op  = tp / (tp + fn) if (tp + fn) else 0.0
+            thr     = md.get("thr", None)
+
+            ax.scatter([rec_op], [prec_op], s=60, edgecolor="black", zorder=5)
+            label_txt = f"thr={thr:.2f}" if thr is not None else "operating point"
+            ax.annotate(label_txt, (rec_op, prec_op),
+                        xytext=(8, -10), textcoords="offset points",
+                        fontsize=11)
+
+    # prevalence baseline
+    ax.hlines(y=baseline, xmin=0, xmax=1, linestyle="--", linewidth=1.8, alpha=0.7,
+              label=f"Prevalence = {baseline:.3f}")
+
+    # styling
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    ax.grid(True, linestyle=":", linewidth=0.8, alpha=0.6)
+    ax.set_xlabel("Recall", fontsize=13, fontweight="bold")
+    ax.set_ylabel("Precision", fontsize=13, fontweight="bold")
+    ax.set_title(title, fontsize=15, fontweight="bold", pad=8)
+    leg = ax.legend(loc="upper right", frameon=False, fontsize=11)
     plt.tight_layout()
-    fig.savefig(outpath, dpi=160)
+    fig.savefig(outpath, dpi=300, bbox_inches="tight")
     plt.close(fig)
+
 
 def main():
     thr = load_threshold()
@@ -182,7 +235,7 @@ def main():
             }, f, indent=2)
 
         # For ROC/PR overlays
-        models_data_for_curves.append({"tag": tag, "y_true": y_true, "proba": proba})
+        models_data_for_curves.append({"tag": tag, "y_true": y_true, "proba": proba, "y_pred": y_pred, "thr": thr})
 
     # Also write a combined table for easy comparison
     metrics_df = pd.DataFrame([{
