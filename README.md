@@ -1,6 +1,6 @@
-# Kaggle Projects
+# Sepsis_Prediction
 
-This repository contains code and artifacts for Kaggle experiments, including data preprocessing, training, evaluation, and predictions.
+This repository contains code and artifacts for a sepsis prediction project, including data preprocessing, training, evaluation, and predictions.
 
 ## Structure
 - `src/`: pipelines for preprocess, train, evaluate, and predict
