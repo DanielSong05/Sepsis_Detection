@@ -1,6 +1,7 @@
-# Sepsis_Prediction
+# Sepsis_Detection
 
-This repository contains code and artifacts for a sepsis prediction project, including data preprocessing, training, evaluation, and predictions.
+Sepsis Prediction is a machine learning pipeline for early detection of sepsis using patient data. The project covers end-to-end development, including data preprocessing, stratified train/test splits, model training with cross-validation, performance evaluation (AUROC, AUPRC, precision, recall, F1), and generating predictions. Artifacts such as trained models, metrics, and visualizations are stored for reproducibility and further analysis.
+
 
 ## Structure
 - `src/`: pipelines for preprocess, train, evaluate, and predict
